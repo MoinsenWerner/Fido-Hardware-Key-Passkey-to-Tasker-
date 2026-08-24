@@ -18,12 +18,34 @@ auf `0.0.0.0:4099`.
 python -m venv .venv
 . .venv/bin/activate
 pip install -r requirements.txt
-export VAULT_KEY="$(python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')"
-export SECRET_KEY="$(python -c 'import secrets; print(secrets.token_hex(32))')"
-export RP_ID=example.local
-export ORIGIN=https://example.local:4099
+source ./set-secrets.sh
 python app.py
 ```
+
+`set-secrets.sh` erklärt alle vier Werte, fragt verständlich danach und erzeugt
+auf Wunsch sichere neue Schlüssel. Das Skript muss mit `source` geladen werden,
+damit die exportierten Variablen anschließend für Flask verfügbar sind.
+
+### Cloudflare Tunnel für `auth.extrahelden.de`
+
+Der Tunnel darf intern weiterhin auf `http://localhost:4099` zeigen. Nach außen
+entscheidend ist ausschließlich die HTTPS-Adresse. Für den genannten Tunnel
+müssen diese Werte gelten (sie sind die Vorgaben im Setup-Skript):
+
+```bash
+export RP_ID=auth.extrahelden.de
+export ORIGIN=https://auth.extrahelden.de
+```
+
+Danach sind die Seiten unter folgenden öffentlichen URLs verfügbar:
+
+* `https://auth.extrahelden.de/register`
+* `https://auth.extrahelden.de/get`
+
+Flask setzt bei einer HTTPS-`ORIGIN` automatisch ein Secure-Session-Cookie. Die
+von Cloudflare an Flask weitergeleitete interne HTTP-Verbindung beeinträchtigt
+WebAuthn nicht, weil Registrierung und Authentifizierung im Browser unter der
+öffentlichen HTTPS-Origin stattfinden.
 
 Im Netzwerk muss vor Flask ein HTTPS-Reverse-Proxy stehen. `RP_ID` ist nur der
 Hostname, `ORIGIN` enthält Schema und gegebenenfalls Port. Ohne dauerhaftes
@@ -36,6 +58,10 @@ entschlüsselt werden.
   `https://example.local:4099/register?username=max&password=geheim&create-passkey&type=fido`
 * Plattform-Passkey (Fingerabdruck/PIN): `type=fingerprint`
 * Abruf: `https://example.local:4099/get?username=max`
+
+Beide Seiten können auch ganz ohne URL-Parameter geöffnet werden. In diesem Fall
+erscheint ein verständliches Formular für Benutzername, Passwort und Passkey-Typ
+beziehungsweise für den abzurufenden Benutzernamen.
 
 Passwörter in URLs landen häufig in Verlauf und Proxy-Logs. Deshalb ist
 `POST /api/register/options` mit JSON (`username`, `password`, `type`) die

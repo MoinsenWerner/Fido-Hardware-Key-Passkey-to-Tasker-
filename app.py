@@ -6,6 +6,7 @@ import sqlite3
 import time
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from cryptography.fernet import Fernet, InvalidToken
 from flask import Flask, jsonify, render_template, request, session
@@ -46,6 +47,12 @@ def create_app(config: dict[str, Any] | None = None) -> Flask:
     )
     if config:
         app.config.update(config)
+    if not config or "SESSION_COOKIE_SECURE" not in config:
+        app.config["SESSION_COOKIE_SECURE"] = (
+            urlparse(app.config["ORIGIN"]).scheme == "https"
+        )
+    app.config["SESSION_COOKIE_HTTPONLY"] = True
+    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
     def database() -> sqlite3.Connection:
         connection = sqlite3.connect(app.config["DATABASE"])
@@ -98,7 +105,11 @@ def create_app(config: dict[str, Any] | None = None) -> Flask:
 
     @app.get("/health")
     def health():
-        return jsonify(status="ok")
+        return jsonify(
+            status="ok",
+            origin=app.config["ORIGIN"],
+            rp_id=app.config["RP_ID"],
+        )
 
     @app.get("/register")
     def register_page():
